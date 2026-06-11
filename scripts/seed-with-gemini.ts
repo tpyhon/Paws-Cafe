@@ -2,6 +2,9 @@
  * Gemini API を使って東京都内の犬同伴可能な店舗データを生成し、Supabaseに投入するスクリプト
  * 実行: npx tsx scripts/seed-with-gemini.ts
  */
+import { config } from 'dotenv';
+config({ path: '.env.local' });
+
 import { GoogleGenAI } from '@google/genai';
 import { createClient } from '@supabase/supabase-js';
 
@@ -45,7 +48,7 @@ async function main() {
   console.log('Gemini APIでデータ生成中...');
 
   const result = await ai.models.generateContent({
-    model: 'gemini-2.0-flash',
+    model: 'gemini-2.5-flash',
     contents: [{ role: 'user', parts: [{ text: PROMPT }] }],
   });
 
