@@ -30,7 +30,8 @@ export async function GET(request: Request) {
     query = query.contains('lines', [line]);
   }
   if (area) {
-    query = query.eq('area_name', area);
+    // 部分一致（「代官山・中目黒」ボタンで「代官山」も「中目黒」もヒット）
+    query = query.ilike('area_name', `%${area}%`);
   }
   if (policy) {
     query = query.eq('policy', policy);
