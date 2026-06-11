@@ -148,9 +148,9 @@ export default async function PlaceDetailPage({ params }: { params: Promise<{ id
               href={p.tabelog_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 text-sm text-orange-700 hover:underline"
+              className="flex items-center gap-2 text-sm text-red-700 hover:underline"
             >
-              <ExternalLink className="w-4 h-4" /> 食べログ
+              <ExternalLink className="w-4 h-4" /> ホットペッパー
             </a>
           )}
           {p.website_url && (

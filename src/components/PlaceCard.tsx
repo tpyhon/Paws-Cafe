@@ -103,11 +103,11 @@ export function PlaceCard({ place, isFavorited = false, isVisited = false, dista
                 href={place.tabelog_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 text-xs text-orange-600 hover:underline"
+                className="flex items-center gap-1 text-xs text-red-600 hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
                 <ExternalLink className="w-3 h-3" />
-                食べログ
+                ホットペッパー
               </a>
             )}
           </div>
