@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed": "npx tsx scripts/seed-with-gemini.ts"
+    "seed": "npx tsx scripts/seed-with-gemini.ts",
+    "seed:real": "npx tsx scripts/seed-with-hotpepper.ts"
   },
   "dependencies": {
     "@google/genai": "^2.8.0",
