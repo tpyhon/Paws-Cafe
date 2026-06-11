@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { MapPin, Clock, Wallet } from 'lucide-react';
+import { MapPin, Clock, Wallet, Map, ExternalLink } from 'lucide-react';
 import { Place, CATEGORY_LABELS } from '@/lib/types';
 import { ImageCarousel } from './ImageCarousel';
 import { PolicyBadge } from './PolicyBadge';
@@ -11,6 +11,10 @@ interface Props {
   isFavorited?: boolean;
   isVisited?: boolean;
   distanceMeters?: number;
+}
+
+function googleMapsUrl(place: Place) {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${place.name} ${place.address}`)}`;
 }
 
 export function PlaceCard({ place, isFavorited = false, isVisited = false, distanceMeters }: Props) {
@@ -62,23 +66,51 @@ export function PlaceCard({ place, isFavorited = false, isVisited = false, dista
           ))}
         </div>
 
-        <div className="flex items-center gap-4 mt-3 text-xs text-stone-500">
-          <span className="flex items-center gap-1">
-            <MapPin className="w-3 h-3" />
-            {distanceText ?? place.area_name}
-          </span>
-          {place.business_hours && (
+        <div className="flex items-center justify-between mt-3">
+          <div className="flex items-center gap-3 text-xs text-stone-500 flex-wrap">
             <span className="flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              {place.business_hours}
+              <MapPin className="w-3 h-3" />
+              {distanceText ?? place.area_name}
             </span>
-          )}
-          {(place.budget_lunch || place.budget_dinner) && (
-            <span className="flex items-center gap-1">
-              <Wallet className="w-3 h-3" />
-              {place.budget_lunch ?? place.budget_dinner}
-            </span>
-          )}
+            {place.business_hours && (
+              <span className="flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                {place.business_hours}
+              </span>
+            )}
+            {(place.budget_lunch || place.budget_dinner) && (
+              <span className="flex items-center gap-1">
+                <Wallet className="w-3 h-3" />
+                {place.budget_lunch ?? place.budget_dinner}
+              </span>
+            )}
+          </div>
+
+          {/* 外部リンク */}
+          <div className="flex items-center gap-2 shrink-0 ml-2">
+            <a
+              href={googleMapsUrl(place)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Map className="w-3 h-3" />
+              地図
+            </a>
+            {place.tabelog_url && (
+              <a
+                href={place.tabelog_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs text-orange-600 hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <ExternalLink className="w-3 h-3" />
+                食べログ
+              </a>
+            )}
+          </div>
         </div>
       </div>
     </div>

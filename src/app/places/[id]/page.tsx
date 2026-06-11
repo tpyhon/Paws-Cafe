@@ -1,8 +1,8 @@
 import { notFound } from 'next/navigation';
-import { MapPin, Clock, Wallet, ExternalLink, ArrowLeft, Info } from 'lucide-react';
+import { MapPin, Clock, Wallet, ExternalLink, ArrowLeft, Info, Map } from 'lucide-react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { Place, CATEGORY_LABELS, POLICY_LABELS, POLICY_EMOJI } from '@/lib/types';
+import { Place, CATEGORY_LABELS } from '@/lib/types';
 import { ImageCarousel } from '@/components/ImageCarousel';
 import { PolicyBadge } from '@/components/PolicyBadge';
 import { FavoriteButton } from '@/components/FavoriteButton';
@@ -131,33 +131,40 @@ export default async function PlaceDetailPage({ params }: { params: Promise<{ id
       </div>
 
       {/* 外部リンク */}
-      {(p.website_url || p.tabelog_url) && (
-        <div className="bg-white rounded-2xl border border-stone-100 p-4 space-y-2">
-          <h2 className="font-bold text-stone-800">リンク</h2>
-          <div className="space-y-2">
-            {p.website_url && (
-              <a
-                href={p.website_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 text-sm text-amber-700 hover:underline"
-              >
-                <ExternalLink className="w-4 h-4" /> 公式サイト
-              </a>
-            )}
-            {p.tabelog_url && (
-              <a
-                href={p.tabelog_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 text-sm text-amber-700 hover:underline"
-              >
-                <ExternalLink className="w-4 h-4" /> 食べログ
-              </a>
-            )}
-          </div>
+      <div className="bg-white rounded-2xl border border-stone-100 p-4 space-y-2">
+        <h2 className="font-bold text-stone-800">外部リンク</h2>
+        <div className="space-y-2">
+          {/* Google Maps は常に表示（name+addressから生成） */}
+          <a
+            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${p.name} ${p.address}`)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 text-sm text-blue-700 hover:underline font-medium"
+          >
+            <Map className="w-4 h-4" /> Google マップで見る
+          </a>
+          {p.tabelog_url && (
+            <a
+              href={p.tabelog_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-sm text-orange-700 hover:underline"
+            >
+              <ExternalLink className="w-4 h-4" /> 食べログ
+            </a>
+          )}
+          {p.website_url && (
+            <a
+              href={p.website_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-sm text-amber-700 hover:underline"
+            >
+              <ExternalLink className="w-4 h-4" /> 公式サイト
+            </a>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
