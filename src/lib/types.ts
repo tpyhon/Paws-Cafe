@@ -6,6 +6,7 @@ export interface Place {
   name: string;
   category: PlaceCategory;
   policy: DogPolicyType;
+  is_smoking: boolean;
   latitude: number;
   longitude: number;
   address: string;
@@ -58,6 +59,18 @@ export const POLICY_EMOJI: Record<DogPolicyType, string> = {
   inside_ok: '🐕',
   terrace_only: '☀️',
   some_seats_ok: '🪑',
+};
+
+export const SMOKING_POLICY_LABELS: Record<DogPolicyType, string> = {
+  inside_ok: '全席喫煙可',
+  terrace_only: 'テラス席のみ喫煙可',
+  some_seats_ok: '一部席・分煙',
+};
+
+export const SMOKING_POLICY_EMOJI: Record<DogPolicyType, string> = {
+  inside_ok: '🚬',
+  terrace_only: '🌤️',
+  some_seats_ok: '💨',
 };
 
 export const CATEGORY_LABELS: Record<PlaceCategory, string> = {

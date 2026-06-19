@@ -60,7 +60,7 @@ const AREA_BATCHES = [
 
 // Supabaseスキーマに存在するカラムのみ
 const KNOWN_COLUMNS = new Set([
-  'name','category','policy','latitude','longitude','address','area_name',
+  'name','category','policy','is_smoking','latitude','longitude','address','area_name',
   'station_name','lines','budget_lunch','budget_dinner','business_hours',
   'dog_features','dog_rules','website_url','tabelog_url','image_url',
   'interior_images','comment',
@@ -68,7 +68,8 @@ const KNOWN_COLUMNS = new Set([
 
 function buildPrompt(area: string, station: string, lines: string[]): string {
   return `
-東京都内の犬同伴可能なカフェ・レストランを「${area}」エリアで6件、以下のJSON配列形式で生成してください。
+東京都内の飲食店データを「${area}」エリアで合計6件、以下のJSON配列形式で生成してください。
+そのうち「3件は犬同伴可能な店舗（is_smoking: false）」、残りの「3件は喫煙可能な店舗（is_smoking: true）」としてください。
 実在する（または実在しそうな）店の情報をリアルに記述してください。
 
 重要な制約:
@@ -80,10 +81,13 @@ function buildPrompt(area: string, station: string, lines: string[]): string {
 - tabelog_url: 実在しそうな食べログURLを生成（例: https://tabelog.com/tokyo/A1302/A130201/13012345/）。わからなければnull
 - website_url: null
 
-フィールド一覧:
+フィールドおよび値の制約:
 - name: string
 - category: "cafe"|"italian"|"yakiniku"|"japanese"|"asian_ethnic"|"other"
+- is_smoking: boolean (3件はfalse、3件はtrue)
 - policy: "inside_ok"|"terrace_only"|"some_seats_ok"
+  * is_smokingがfalse（犬同伴店）の場合の解釈: "inside_ok"（店内OK）、"terrace_only"（テラスのみ可）、"some_seats_ok"（一部席のみOK）
+  * is_smokingがtrue（喫煙可店）の場合の解釈: "inside_ok"（全席喫煙可）、"terrace_only"（テラス席のみ喫煙可）、"some_seats_ok"（一部席・分煙）
 - latitude: number (${area}周辺の正確な緯度)
 - longitude: number (${area}周辺の正確な経度)
 - address: string (東京都の実在する住所)
@@ -91,13 +95,15 @@ function buildPrompt(area: string, station: string, lines: string[]): string {
 - budget_lunch: string|null
 - budget_dinner: string|null
 - business_hours: string|null
-- dog_features: string[] (3〜5個: "大型犬OK","ドッグメニューあり","水・おやつ提供","リードフックあり","マナーウェア貸出","テラス席あり","店内同伴OK" から選択)
-- dog_rules: string|null
+- dog_features: string[] (3〜5個設定)
+  * is_smokingがfalse（犬同伴店）の場合の選択肢: "大型犬OK", "ドッグメニューあり", "水・おやつ提供", "リードフックあり", "マナーウェア貸出", "テラス席あり", "店内同伴OK"
+  * is_smokingがtrue（喫煙可店）の場合の選択肢: "紙タバコOK", "加熱式タバコのみ", "喫煙専用室あり", "電子タバコのみ", "換気設備あり", "テラス席喫煙可"
+- dog_rules: string|null (is_smokingがtrueの場合は「喫煙時のルールや注意書き」を記述)
 - website_url: null
 - tabelog_url: string|null
 - image_url: ""
 - interior_images: []
-- comment: string (おすすめポイント40〜60文字)
+- comment: string (おすすめポイント40〜60文字。is_smokingがtrueの場合はタバコに関する特徴やお店の雰囲気を盛り込んでください)
 
 JSONのみ出力。コードブロックや説明文は不要。
 `;

@@ -70,6 +70,8 @@ interface HpShop {
   access?: string;
   urls: { pc: string };
   photo: { pc: { l: string; m: string } };
+  non_smoking?: string;
+  pet?: string;
 }
 
 interface MiddleArea {
@@ -88,8 +90,8 @@ async function fetchMiddleAreas(): Promise<MiddleArea[]> {
   return data.results?.middle_area ?? [];
 }
 
-// ── 中エリア1つ分の全ペット可店舗を取得（ページング） ──
-async function fetchForArea(areaCode: string): Promise<HpShop[]> {
+// ── 中エリア1つ分の店舗を取得（ページング＆フィルタリング） ──
+async function fetchForArea(areaCode: string, isSmokingMode: boolean): Promise<HpShop[]> {
   const shops: HpShop[] = [];
   const COUNT = 100;
 
@@ -98,7 +100,9 @@ async function fetchForArea(areaCode: string): Promise<HpShop[]> {
     url.searchParams.set('key', HP_KEY);
     url.searchParams.set('format', 'json');
     url.searchParams.set('middle_area', areaCode);
-    url.searchParams.set('pet', '1');
+    if (!isSmokingMode) {
+      url.searchParams.set('pet', '1');
+    }
     url.searchParams.set('count', String(COUNT));
     url.searchParams.set('start', String(start));
 
@@ -107,19 +111,26 @@ async function fetchForArea(areaCode: string): Promise<HpShop[]> {
     const batch: HpShop[] = data.results?.shop ?? [];
     if (!batch.length) break;
 
-    shops.push(...batch);
+    if (isSmokingMode) {
+      // 喫煙可能な店舗（全面禁煙以外）をフィルタリング
+      const smokingShops = batch.filter((s) => s.non_smoking && !s.non_smoking.includes('全面禁煙'));
+      shops.push(...smokingShops);
+    } else {
+      shops.push(...batch);
+    }
 
     const available = parseInt(data.results?.results_available ?? '0');
-    if (shops.length >= available || start + COUNT > 1000) break;
+    // シード処理の肥大化を防ぐため、1エリア最大30件に制限
+    if (shops.length >= 30 || start + COUNT > 1000) break;
 
-    await new Promise((r) => setTimeout(r, 300));
+    await new Promise((r) => setTimeout(r, 200));
   }
 
-  return shops;
+  return shops.slice(0, 30);
 }
 
 // ── Hot Pepper データ → DBスキーマへ変換 ──
-function toDbRow(shop: HpShop) {
+function toDbRow(shop: HpShop, isSmoking: boolean) {
   const genreName = shop.genre?.name ?? '';
   const subGenreName = shop.sub_genre?.name ?? '';
   const access = shop.access ?? '';
@@ -127,10 +138,26 @@ function toDbRow(shop: HpShop) {
   const areaName = shop.small_area?.name ?? shop.middle_area?.name ?? '東京';
   const stationName = shop.station_name ? `${shop.station_name}駅` : areaName;
 
+  let policy: 'inside_ok' | 'terrace_only' | 'some_seats_ok' = 'some_seats_ok';
+  let features = ['ペット可'];
+  let rules = null;
+
+  if (isSmoking) {
+    const ns = shop.non_smoking ?? '';
+    if (ns.includes('全面喫煙可') || ns.includes('禁煙席なし')) {
+      policy = 'inside_ok';
+    } else if (ns.includes('一部禁煙') || ns.includes('分煙') || ns.includes('禁煙席あり')) {
+      policy = 'some_seats_ok';
+    }
+    features = ['喫煙可', ns].filter(Boolean);
+    rules = ns;
+  }
+
   return {
     name: shop.name,
     category: mapCategory(genreName, subGenreName),
-    policy: 'some_seats_ok' as const,
+    policy,
+    is_smoking: isSmoking,
     latitude: shop.lat,
     longitude: shop.lng,
     geom: `SRID=4326;POINT(${shop.lng} ${shop.lat})`,
@@ -141,8 +168,8 @@ function toDbRow(shop: HpShop) {
     budget_lunch: formatBudget(shop.budget?.name ?? ''),
     budget_dinner: formatBudget(shop.budget?.name ?? ''),
     business_hours: shop.open ?? null,
-    dog_features: ['ペット可'],
-    dog_rules: null,
+    dog_features: features,
+    dog_rules: rules,
     website_url: null,
     tabelog_url: shop.urls?.pc ?? null,
     image_url: shop.photo?.pc?.l ?? null,
@@ -152,41 +179,47 @@ function toDbRow(shop: HpShop) {
 }
 
 async function main() {
-  console.log('=== Hot Pepper API 全件取得（中エリア分割モード）===\n');
+  console.log('=== Hot Pepper API 取得（愛犬同伴OK ＆ 喫煙可店舗）===\n');
 
   // 中エリア一覧取得
   const areas = await fetchMiddleAreas();
   console.log(`中エリア数: ${areas.length}件\n`);
 
   // 全エリアから店舗取得（IDで重複排除）
-  const shopMap = new Map<string, HpShop>();
+  const dogShopMap = new Map<string, HpShop>();
+  const smokingShopMap = new Map<string, HpShop>();
 
   for (let i = 0; i < areas.length; i++) {
     const area = areas[i];
-    process.stdout.write(`[${String(i + 1).padStart(2)}/${areas.length}] ${area.name.slice(0, 20).padEnd(22)} `);
+    process.stdout.write(`[${String(i + 1).padStart(2)}/${areas.length}] ${area.name.slice(0, 14).padEnd(16)} `);
 
-    const shops = await fetchForArea(area.code);
-    let newCount = 0;
-    for (const s of shops) {
-      if (!shopMap.has(s.id)) {
-        shopMap.set(s.id, s);
-        newCount++;
-      }
+    // 犬同伴可店舗の取得
+    const dogShops = await fetchForArea(area.code, false);
+    for (const s of dogShops) {
+      if (!dogShopMap.has(s.id)) dogShopMap.set(s.id, s);
     }
-    console.log(`${shops.length}件取得 (+${newCount}件新規) | 累計: ${shopMap.size}件`);
 
-    await new Promise((r) => setTimeout(r, 500));
+    // 喫煙可店舗の取得
+    const smokingShops = await fetchForArea(area.code, true);
+    for (const s of smokingShops) {
+      if (!smokingShopMap.has(s.id)) smokingShopMap.set(s.id, s);
+    }
+
+    console.log(`犬: ${dogShops.length}件 | 喫煙: ${smokingShops.length}件 | 累計: 犬 ${dogShopMap.size}件 / 喫煙 ${smokingShopMap.size}件`);
+
+    await new Promise((r) => setTimeout(r, 300));
   }
 
-  const allShops = Array.from(shopMap.values());
-  console.log(`\n重複排除後: ${allShops.length}件\n`);
+  const allDogRows = Array.from(dogShopMap.values()).map((s) => toDbRow(s, false));
+  const allSmokingRows = Array.from(smokingShopMap.values()).map((s) => toDbRow(s, true));
+  const rows = [...allDogRows, ...allSmokingRows];
+  console.log(`\n重複排除後 累計: 犬同伴 ${allDogRows.length}件 + 喫煙可 ${allSmokingRows.length}件 = 合計 ${rows.length}件\n`);
 
   // 既存データ削除
   console.log('既存データを削除中...');
   await supabase.from('dog_friendly_places').delete().gt('id', 0);
 
   // 100件ずつバッチ挿入
-  const rows = allShops.map(toDbRow);
   let inserted = 0;
   let errors = 0;
 
@@ -208,12 +241,11 @@ async function main() {
 
   console.log(`\n\n=== 完了: ${inserted}件挿入 / ${errors}バッチエラー ===`);
 
-  // エリア別サマリ（上位15）
-  const areaSummary: Record<string, number> = {};
-  rows.forEach((r) => { areaSummary[r.area_name] = (areaSummary[r.area_name] ?? 0) + 1; });
-  const top15 = Object.entries(areaSummary).sort((a, b) => b[1] - a[1]).slice(0, 15);
-  console.log('\nエリア別 上位15件:');
-  top15.forEach(([area, count]) => console.log(`  ${area.padEnd(24)} ${count}件`));
+  // 区分別サマリ
+  const dogCount = rows.filter((r) => !r.is_smoking).length;
+  const smokingCount = rows.filter((r) => r.is_smoking).length;
+  console.log(`  犬同伴OK店舗 : ${dogCount}件`);
+  console.log(`  喫煙可能店舗 : ${smokingCount}件`);
 }
 
 main().catch(console.error);
