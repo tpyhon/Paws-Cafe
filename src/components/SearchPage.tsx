@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { MapPin, Train, Map, Loader2, Search, Navigation, Cigarette, CigaretteOff } from 'lucide-react';
-import { Place, MAJOR_LINES, MAJOR_AREAS, DogPolicyType, POLICY_LABELS, SMOKING_POLICY_LABELS } from '@/lib/types';
+import { Place, MAJOR_LINES, MAJOR_AREAS, DogPolicyType, POLICY_LABELS, SMOKING_POLICY_LABELS, PlaceCategory, CATEGORY_LABELS } from '@/lib/types';
 import { PlaceCard } from './PlaceCard';
 
 const MapPinSearch = dynamic(
@@ -35,6 +35,11 @@ export function SearchPage() {
 
   const [isSmokingMode, setIsSmokingMode] = useState(false);
 
+  // 追加ステート
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [displayLimit, setDisplayLimit] = useState<number>(30);
+  const [isHydrated, setIsHydrated] = useState(false);
+
   // Hydrate from localStorage
   useEffect(() => {
     const saved = localStorage.getItem('isSmokingMode');
@@ -42,6 +47,65 @@ export function SearchPage() {
       setIsSmokingMode(true);
     }
   }, []);
+
+  // Hydrate from sessionStorage
+  useEffect(() => {
+    const saved = sessionStorage.getItem('searchState');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.tab) setTab(parsed.tab);
+        if (parsed.places) setPlaces(parsed.places);
+        if (parsed.searched) setSearched(parsed.searched);
+        if (parsed.selectedLine) setSelectedLine(parsed.selectedLine);
+        if (parsed.selectedArea) setSelectedArea(parsed.selectedArea);
+        if (parsed.selectedPolicy) setSelectedPolicy(parsed.selectedPolicy);
+        if (parsed.mapMode != null) setMapMode(parsed.mapMode);
+        if (parsed.pinLat != null) setPinLat(parsed.pinLat);
+        if (parsed.pinLng != null) setPinLng(parsed.pinLng);
+        if (parsed.radius != null) setRadius(parsed.radius);
+        if (parsed.selectedCategory) setSelectedCategory(parsed.selectedCategory);
+        if (parsed.displayLimit != null) setDisplayLimit(parsed.displayLimit);
+      } catch (e) {
+        console.error('Failed to parse search state', e);
+      }
+    }
+    setIsHydrated(true);
+  }, []);
+
+  // Save to sessionStorage
+  useEffect(() => {
+    if (!isHydrated) return;
+    const state = {
+      tab,
+      places,
+      searched,
+      selectedLine,
+      selectedArea,
+      selectedPolicy,
+      mapMode,
+      pinLat,
+      pinLng,
+      radius,
+      selectedCategory,
+      displayLimit,
+    };
+    sessionStorage.setItem('searchState', JSON.stringify(state));
+  }, [
+    isHydrated,
+    tab,
+    places,
+    searched,
+    selectedLine,
+    selectedArea,
+    selectedPolicy,
+    mapMode,
+    pinLat,
+    pinLng,
+    radius,
+    selectedCategory,
+    displayLimit,
+  ]);
 
   // Sync to localStorage and body styles
   useEffect(() => {
@@ -62,6 +126,8 @@ export function SearchPage() {
   const search = useCallback(async (params: URLSearchParams) => {
     setLoading(true);
     setError(null);
+    setSelectedCategory('all');
+    setDisplayLimit(30);
     try {
       params.set('is_smoking', String(isSmokingMode));
       const res = await fetch(`/api/places/search?${params.toString()}`);
@@ -435,18 +501,84 @@ export function SearchPage() {
       )}
 
       {/* 検索結果 */}
-      {searched && !loading && (
-        <div>
-          <p className={`text-sm mb-3 ${isSmokingMode ? 'text-zinc-500' : 'text-stone-500'}`}>
-            {places.length > 0 ? `${places.length}件見つかりました` : '条件に合うお店が見つかりませんでした'}
-          </p>
+      {searched && !loading && (() => {
+        const filteredPlaces = places.filter((p) => {
+          if (selectedCategory === 'all') return true;
+          return p.category === selectedCategory;
+        });
+        const displayedPlaces = filteredPlaces.slice(0, displayLimit);
+
+        const categories = [
+          { value: 'all', label: 'すべて' },
+          ...Object.entries(CATEGORY_LABELS).map(([value, label]) => ({ value, label })),
+        ];
+
+        return (
           <div className="space-y-4">
-            {places.map((place) => (
-              <PlaceCard key={place.id} place={place} distanceMeters={place.distance_meters} />
-            ))}
+            {/* カテゴリフィルタタブ */}
+            <div className="flex gap-2 overflow-x-auto pb-2.5 scrollbar-none flex-nowrap border-b border-stone-100 dark:border-stone-850 mb-2">
+              {categories.map((cat) => {
+                const count = cat.value === 'all'
+                  ? places.length
+                  : places.filter((p) => p.category === cat.value).length;
+
+                return (
+                  <button
+                    key={cat.value}
+                    onClick={() => {
+                      setSelectedCategory(cat.value);
+                      setDisplayLimit(30);
+                    }}
+                    className={`text-xs px-3.5 py-1.5 rounded-full border shrink-0 transition flex items-center gap-1.5 ${
+                      selectedCategory === cat.value
+                        ? isSmokingMode
+                          ? 'bg-zinc-700 text-zinc-100 border-zinc-650 font-medium'
+                          : 'bg-amber-500 text-white border-amber-500 font-medium'
+                        : isSmokingMode
+                          ? 'border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200 bg-zinc-900/40'
+                          : 'border-stone-200 text-stone-600 hover:border-amber-300 hover:text-amber-700 bg-stone-50/50'
+                    }`}
+                  >
+                    <span>{cat.label}</span>
+                    <span className={`text-[10px] px-1 rounded-full ${
+                      selectedCategory === cat.value
+                        ? isSmokingMode ? 'bg-zinc-600 text-zinc-300' : 'bg-amber-600 text-amber-100'
+                        : isSmokingMode ? 'bg-zinc-850 text-zinc-500' : 'bg-stone-100 text-stone-400'
+                    }`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className={`text-sm mb-1 ${isSmokingMode ? 'text-zinc-500' : 'text-stone-500'}`}>
+              {filteredPlaces.length > 0 ? `${filteredPlaces.length}件見つかりました` : '条件に合うお店が見つかりませんでした'}
+            </p>
+
+            <div className="space-y-4">
+              {displayedPlaces.map((place) => (
+                <PlaceCard key={place.id} place={place} distanceMeters={place.distance_meters} />
+              ))}
+            </div>
+
+            {filteredPlaces.length > displayLimit && (
+              <div className="text-center pt-2">
+                <button
+                  onClick={() => setDisplayLimit((prev) => prev + 30)}
+                  className={`w-full py-3 rounded-xl border text-sm font-semibold transition ${
+                    isSmokingMode
+                      ? 'bg-zinc-850 border-zinc-750 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100'
+                      : 'bg-white border-stone-200 text-stone-700 hover:border-amber-300 hover:text-amber-700'
+                  }`}
+                >
+                  もっと見る
+                </button>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

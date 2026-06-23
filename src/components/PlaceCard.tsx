@@ -47,12 +47,21 @@ export function PlaceCard({ place, isFavorited = false, isVisited = false, dista
       <div className="p-4">
         <div className="flex items-start justify-between gap-2">
           <Link href={`/places/${place.id}`} className="flex-1 min-w-0">
-            <h3 className={`font-bold text-base leading-tight transition truncate ${
+            <h3 className={`font-bold text-base leading-tight transition flex items-center gap-1.5 truncate ${
               place.is_smoking
                 ? 'text-zinc-100 hover:text-zinc-300'
                 : 'text-stone-800 hover:text-amber-700'
             }`}>
-              {place.name}
+              <span className="truncate">{place.name}</span>
+              {place.dog_features.includes('チェーン店') && (
+                <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded font-normal leading-none ${
+                  place.is_smoking
+                    ? 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+                    : 'bg-stone-100 text-stone-600 border border-stone-200'
+                }`}>
+                  チェーン店
+                </span>
+              )}
             </h3>
             <p className={`text-xs mt-0.5 ${place.is_smoking ? 'text-zinc-400' : 'text-stone-500'}`}>
               {CATEGORY_LABELS[place.category]} · {place.station_name}
@@ -69,7 +78,7 @@ export function PlaceCard({ place, isFavorited = false, isVisited = false, dista
         )}
 
         <div className="flex flex-wrap gap-1 mt-3">
-          {place.dog_features.slice(0, 4).map((f) => (
+          {place.dog_features.filter((f) => f !== 'チェーン店').slice(0, 4).map((f) => (
             <span
               key={f}
               className={`text-xs border rounded-full px-2 py-0.5 ${

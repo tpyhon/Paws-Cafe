@@ -120,13 +120,12 @@ async function fetchForArea(areaCode: string, isSmokingMode: boolean): Promise<H
     }
 
     const available = parseInt(data.results?.results_available ?? '0');
-    // シード処理の肥大化を防ぐため、1エリア最大30件に制限
-    if (shops.length >= 30 || start + COUNT > 1000) break;
+    if (start + COUNT > 1000) break;
 
     await new Promise((r) => setTimeout(r, 200));
   }
 
-  return shops.slice(0, 30);
+  return shops;
 }
 
 // ── Hot Pepper データ → DBスキーマへ変換 ──
@@ -178,6 +177,33 @@ function toDbRow(shop: HpShop, isSmoking: boolean) {
   };
 }
 
+const CHAIN_KEYWORDS = [
+  'スターバックス', 'STARBUCKS', 'ドトール', 'DOUTOR', 'タリーズ', 'TULLY', 'サンマルク', 'プロント', 'PRONTO',
+  'コメダ', '上島珈琲', 'ルノアール', 'ブルーボトル', 'BLUE BOTTLE', '猿田彦', 'マクドナルド', 'McDonald',
+  'モスバーガー', 'MOS BURGER', 'ケンタッキー', 'KFC', 'ロッテリア', 'LOTTERIA', 'サブウェイ', 'SUBWAY',
+  'ファーストキッチン', 'ウェンディーズ', 'ガスト', 'ジョナサン', 'サイゼリヤ', 'サイゼリア', 'デニーズ',
+  'ロイヤルホスト', 'バーミヤン', 'ココス', 'COCO\'S', '大戸屋', 'やよい軒', '吉野家', 'すき家', '松屋',
+  'なか卯', 'CoCo壱番屋', 'スープストック', 'Soup Stock', 'ミスタードーナツ', 'クリスピー・クリーム',
+  'エクセルシオール', 'EXCELSIOR', 'ベローチェ', 'VELOCE', 'カフェ・ド・クリエ', 'ディーン＆デルーカ',
+  'DEAN & DELUCA', 'セガフレード', 'Segafredo', 'メゾンカイザー', 'アパホテル', '叙々苑', 'トラジ',
+  '牛角', '温野菜', 'しゃぶ葉', '木曽路', '梅の花', 'アウトバック', 'ババ・ガンプ', 'ハードロックカフェ',
+  'レッドロブスター', '和民', '鳥貴族', '土間土間', '天狗', '庄や', '八剣伝', 'つぼ八', '白木屋',
+  '魚民', '笑笑', 'はなまるうどん', '丸亀製麺', '富士そば', '小諸そば', 'ゆで太郎',
+  '天下一品', '一蘭', '一風堂', '日高屋', '餃子の王将', '大阪王将', 'リンガーハット', 'ミヤマ珈琲',
+  '倉式珈琲', '星乃珈琲', '高木珈琲', 'コメダ珈琲'
+];
+
+function getBaseName(name: string): string {
+  const parts = name.split(/[\s　]+/);
+  if (parts[0] && parts[0].length >= 3) {
+    const skipWords = ['イタリアン', 'フレンチ', '和食', '居酒屋', 'ダイニング', 'カフェ', 'CAFE', 'バル', 'BAR', '焼肉', '個室', '創作', '日本料理', '割烹'];
+    if (!skipWords.some(w => parts[0].includes(w))) {
+      return parts[0];
+    }
+  }
+  return name;
+}
+
 async function main() {
   console.log('=== Hot Pepper API 取得（愛犬同伴OK ＆ 喫煙可店舗）===\n');
 
@@ -212,8 +238,34 @@ async function main() {
 
   const allDogRows = Array.from(dogShopMap.values()).map((s) => toDbRow(s, false));
   const allSmokingRows = Array.from(smokingShopMap.values()).map((s) => toDbRow(s, true));
-  const rows = [...allDogRows, ...allSmokingRows];
+  let rows = [...allDogRows, ...allSmokingRows];
   console.log(`\n重複排除後 累計: 犬同伴 ${allDogRows.length}件 + 喫煙可 ${allSmokingRows.length}件 = 合計 ${rows.length}件\n`);
+
+  // チェーン店判定用の集計
+  console.log('チェーン店の判定処理中...');
+  const nameCounts = new Map<string, number>();
+  const baseNameCounts = new Map<string, number>();
+
+  for (const r of rows) {
+    nameCounts.set(r.name, (nameCounts.get(r.name) || 0) + 1);
+    const base = getBaseName(r.name);
+    baseNameCounts.set(base, (baseNameCounts.get(base) || 0) + 1);
+  }
+
+  rows = rows.map((r) => {
+    const base = getBaseName(r.name);
+    const isChain = CHAIN_KEYWORDS.some(kw => r.name.toLowerCase().includes(kw.toLowerCase())) ||
+                    (nameCounts.get(r.name) || 0) >= 2 ||
+                    (baseNameCounts.get(base) || 0) >= 2;
+    
+    if (isChain && !r.dog_features.includes('チェーン店')) {
+      return {
+        ...r,
+        dog_features: [...r.dog_features, 'チェーン店']
+      };
+    }
+    return r;
+  });
 
   // 既存データ削除
   console.log('既存データを削除中...');
