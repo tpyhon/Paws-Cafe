@@ -9,6 +9,7 @@
     "lint": "eslint",
     "seed": "npx tsx scripts/seed-with-gemini.ts",
     "seed:real": "npx tsx scripts/seed-with-hotpepper.ts",
+    "seed:google": "npx tsx scripts/seed-with-google.ts",
     "update:policy": "npx tsx scripts/update-policy.ts"
   },
   "dependencies": {
