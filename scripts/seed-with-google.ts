@@ -117,16 +117,27 @@ async function main() {
 
   // 1. 既存の店舗データを全取得（重複判定用）
   console.log('DBから既存データを取得中...');
-  const { data: existingPlaces, error: fetchErr } = await supabase
-    .from('dog_friendly_places')
-    .select('name, latitude, longitude');
+  const dbPlaces: any[] = [];
+  const limit = 1000;
+  let offset = 0;
 
-  if (fetchErr) {
-    console.error('既存データの取得に失敗しました:', fetchErr.message);
-    process.exit(1);
+  while (true) {
+    const { data: batch, error: fetchErr } = await supabase
+      .from('dog_friendly_places')
+      .select('name, latitude, longitude')
+      .range(offset, offset + limit - 1);
+
+    if (fetchErr) {
+      console.error('既存データの取得に失敗しました:', fetchErr.message);
+      process.exit(1);
+    }
+
+    if (!batch || batch.length === 0) break;
+    dbPlaces.push(...batch);
+    if (batch.length < limit) break;
+    offset += limit;
   }
 
-  const dbPlaces = existingPlaces ?? [];
   console.log(`既存店舗数: ${dbPlaces.length}件\n`);
 
   // 2. Google Places からデータ取得
