@@ -52,6 +52,7 @@ interface GooglePlace {
   allowsDogs?: boolean;
   regularOpeningHours?: { weekdayDescriptions?: string[] };
   websiteUri?: string;
+  photos?: { name: string }[];
 }
 
 // 簡易的な距離計算（メートル）
@@ -94,7 +95,7 @@ async function searchGooglePlaces(query: string): Promise<GooglePlace[]> {
     headers: {
       'Content-Type': 'application/json',
       'X-Goog-Api-Key': API_KEY,
-      'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.editorialSummary,places.primaryType,places.allowsDogs,places.regularOpeningHours,places.websiteUri'
+      'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.editorialSummary,places.primaryType,places.allowsDogs,places.regularOpeningHours,places.websiteUri,places.photos'
     },
     body: JSON.stringify({
       textQuery: query,
@@ -114,6 +115,19 @@ async function searchGooglePlaces(query: string): Promise<GooglePlace[]> {
 
 async function main() {
   console.log('=== Google Places API を利用したデータ拡充 ===\n');
+
+  // 0. 以前に登録されたGoogleプレイス由来のデータを削除（画像URL更新のため）
+  console.log('以前に登録されたGoogleプレイス由来のデータを削除中...');
+  const { error: deleteErr } = await supabase
+    .from('dog_friendly_places')
+    .delete()
+    .contains('dog_features', ['Googleプレイス']);
+
+  if (deleteErr) {
+    console.error('Googleプレイスデータの削除に失敗しました:', deleteErr.message);
+    process.exit(1);
+  }
+  console.log('以前のGoogleプレイスデータを削除しました。\n');
 
   // 1. 既存の店舗データを全取得（重複判定用）
   console.log('DBから既存データを取得中...');
@@ -225,6 +239,19 @@ async function main() {
             features.push('チェーン店');
           }
 
+          // 写真リファレンスからプロキシURLを作成
+          let imageUrl = null;
+          const interiorImages: string[] = [];
+
+          if (place.photos && place.photos.length > 0) {
+            imageUrl = `/api/places/image?photo_name=${encodeURIComponent(place.photos[0].name)}`;
+            
+            // 2枚目以降の写真を interior_images に入れる (最大3枚)
+            place.photos.slice(1, 4).forEach((p) => {
+              interiorImages.push(`/api/places/image?photo_name=${encodeURIComponent(p.name)}`);
+            });
+          }
+
           newPlacesToInsert.push({
             name,
             category: mapCategory(place.primaryType),
@@ -244,8 +271,8 @@ async function main() {
             dog_rules: summary ? summary.slice(0, 100) : null,
             website_url: place.websiteUri || null,
             tabelog_url: null,
-            image_url: null, // 画像はPlaces APIからだとURL取得が複雑なため一旦null
-            interior_images: [],
+            image_url: imageUrl,
+            interior_images: interiorImages,
             comment: summary || `${name} (Googleプレイス情報)`
           });
         }
