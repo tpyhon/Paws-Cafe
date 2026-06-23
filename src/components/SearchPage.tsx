@@ -14,7 +14,7 @@ const MapPinSearch = dynamic(
   }
 );
 
-type Tab = 'nearby' | 'line' | 'area';
+type Tab = 'nearby' | 'line' | 'area' | 'station';
 
 export function SearchPage() {
   const [tab, setTab] = useState<Tab>('nearby');
@@ -25,6 +25,7 @@ export function SearchPage() {
 
   const [selectedLine, setSelectedLine] = useState('');
   const [selectedArea, setSelectedArea] = useState('');
+  const [selectedStation, setSelectedStation] = useState('');
   const [selectedPolicy, setSelectedPolicy] = useState<DogPolicyType | ''>('');
 
   // 地図検索用
@@ -59,6 +60,7 @@ export function SearchPage() {
         if (parsed.searched) setSearched(parsed.searched);
         if (parsed.selectedLine) setSelectedLine(parsed.selectedLine);
         if (parsed.selectedArea) setSelectedArea(parsed.selectedArea);
+        if (parsed.selectedStation) setSelectedStation(parsed.selectedStation);
         if (parsed.selectedPolicy) setSelectedPolicy(parsed.selectedPolicy);
         if (parsed.mapMode != null) setMapMode(parsed.mapMode);
         if (parsed.pinLat != null) setPinLat(parsed.pinLat);
@@ -82,6 +84,7 @@ export function SearchPage() {
       searched,
       selectedLine,
       selectedArea,
+      selectedStation,
       selectedPolicy,
       mapMode,
       pinLat,
@@ -98,6 +101,7 @@ export function SearchPage() {
     searched,
     selectedLine,
     selectedArea,
+    selectedStation,
     selectedPolicy,
     mapMode,
     pinLat,
@@ -208,10 +212,18 @@ export function SearchPage() {
     search(params);
   }, [search, selectedArea, selectedPolicy]);
 
+  const searchByStation = useCallback(() => {
+    if (!selectedStation) return;
+    const params = new URLSearchParams({ station: selectedStation });
+    if (selectedPolicy) params.set('policy', selectedPolicy);
+    search(params);
+  }, [search, selectedStation, selectedPolicy]);
+
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: 'nearby', label: '現在地から', icon: <MapPin className="w-4 h-4" /> },
     { id: 'line', label: '路線から', icon: <Train className="w-4 h-4" /> },
     { id: 'area', label: 'エリアから', icon: <Map className="w-4 h-4" /> },
+    { id: 'station', label: '駅名から', icon: <Search className="w-4 h-4" /> },
   ];
 
   const policyOptions: { value: DogPolicyType | ''; label: string }[] = [
@@ -495,6 +507,43 @@ export function SearchPage() {
               >
                 {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
                 {loading ? '検索中...' : selectedArea ? `${selectedArea}を検索` : 'エリアを選択してください'}
+              </button>
+            </div>
+          )}
+
+          {tab === 'station' && (
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label htmlFor="station-input" className={`text-xs ${isSmokingMode ? 'text-zinc-400' : 'text-stone-500'}`}>駅名を入力（例：渋谷、自由が丘）</label>
+                <input
+                  id="station-input"
+                  type="text"
+                  value={selectedStation}
+                  onChange={(e) => setSelectedStation(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && selectedStation && !loading) {
+                      searchByStation();
+                    }
+                  }}
+                  placeholder="駅名を入力してください"
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none transition ${
+                    isSmokingMode
+                      ? 'bg-zinc-800 border-zinc-700 text-zinc-100 focus:border-zinc-550'
+                      : 'bg-stone-50 border-stone-200 text-stone-850 focus:border-amber-500'
+                  }`}
+                />
+              </div>
+              <button
+                onClick={searchByStation}
+                disabled={!selectedStation || loading}
+                className={`w-full flex items-center justify-center gap-2 disabled:opacity-60 font-semibold py-3 rounded-xl transition ${
+                  isSmokingMode
+                    ? 'bg-zinc-700 hover:bg-zinc-600 text-zinc-100'
+                    : 'bg-amber-500 hover:bg-amber-600 text-white'
+                }`}
+              >
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
+                {loading ? '検索中...' : selectedStation ? `${selectedStation}駅周辺を検索` : '駅名を入力してください'}
               </button>
             </div>
           )}

@@ -8,6 +8,7 @@ export async function GET(request: Request) {
   const line = searchParams.get('line');
   const area = searchParams.get('area');
   const policy = searchParams.get('policy');
+  const station = searchParams.get('station');
   const isSmoking = searchParams.get('is_smoking') === 'true';
   const radiusParam = searchParams.get('radius');
   const radius = radiusParam ? Math.min(Math.max(parseFloat(radiusParam), 300), 5000) : 1200;
@@ -41,6 +42,10 @@ export async function GET(request: Request) {
     } else {
       query = query.ilike('area_name', `%${area}%`);
     }
+  }
+  if (station) {
+    const cleanStation = station.replace(/駅$/, '');
+    query = query.ilike('station_name', `%${cleanStation}%`);
   }
   if (policy) {
     query = query.eq('policy', policy);
